@@ -1,0 +1,178 @@
+fcitx5-gtk (5.0.13-1+u001) UNRELEASED; urgency=medium
+
+  * update
+
+ -- Debian Input Method Team <debian-input-method@lists.debian.org>  Fri, 22 Apr 2022 15:35:22 +0800
+
+fcitx5-gtk (5.0.13-1) unstable; urgency=medium
+
+  * New upstream release. 
+  * debian/patches: Cherry-pick compatibility patch with older glib.
+
+ -- Boyuan Yang <byang@debian.org>  Wed, 16 Mar 2022 09:17:40 -0400
+
+fcitx5-gtk (5.0.12-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Boyuan Yang <byang@debian.org>  Wed, 02 Feb 2022 10:46:35 -0500
+
+fcitx5-gtk (5.0.11-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Boyuan Yang <byang@debian.org>  Tue, 04 Jan 2022 12:57:06 -0500
+
+fcitx5-gtk (5.0.10-1) unstable; urgency=medium
+
+  * New upstream release 5.0.10.
+
+ -- Boyuan Yang <byang@debian.org>  Tue, 14 Dec 2021 14:48:02 -0500
+
+fcitx5-gtk (5.0.9-1) unstable; urgency=medium
+
+  * New upstream release 5.0.9.
+
+ -- Boyuan Yang <byang@debian.org>  Wed, 24 Nov 2021 10:55:33 -0500
+
+fcitx5-gtk (5.0.8-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release.
+  * Fix typo in package description
+
+ -- Shengjing Zhu <zhsj@debian.org>  Fri, 01 Oct 2021 02:37:01 +0800
+
+fcitx5-gtk (5.0.7-2) unstable; urgency=medium
+
+  * Upload to unstable.
+
+ -- Boyuan Yang <byang@debian.org>  Thu, 09 Sep 2021 19:58:15 -0400
+
+fcitx5-gtk (5.0.7-1) experimental; urgency=medium
+
+  * Team upload.
+  * New upstream release.
+  * Update Standards-Version to 4.6.0 (no changes)
+
+ -- Shengjing Zhu <zhsj@debian.org>  Wed, 25 Aug 2021 02:49:15 +0800
+
+fcitx5-gtk (5.0.4-2) experimental; urgency=medium
+
+  * Team upload.
+  * Enable building gtk4 frontend
+
+ -- Shengjing Zhu <zhsj@debian.org>  Fri, 19 Feb 2021 22:56:21 +0800
+
+fcitx5-gtk (5.0.4-1) experimental; urgency=medium
+
+  * Team upload.
+  * New upstream release.
+  * Add libfmt-dev to Build-Depends
+  * Bump libfcitx5gclient SO to 2
+
+ -- Shengjing Zhu <zhsj@debian.org>  Fri, 19 Feb 2021 22:45:32 +0800
+
+fcitx5-gtk (5.0.3-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release.
+  * Disable GTK4 for now.
+  * Update Standards-Version to 4.5.1 (no changes)
+
+ -- Shengjing Zhu <zhsj@debian.org>  Sat, 16 Jan 2021 01:45:19 +0800
+
+fcitx5-gtk (5.0.1-2) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release.
+  * Remove libfcitx5utils-dev from Build-Depends
+  * Fix libfcitx5gclient1.install file match
+
+ -- Shengjing Zhu <zhsj@debian.org>  Sat, 05 Dec 2020 18:29:41 +0800
+
+fcitx5-gtk (5.0.0-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release.
+  * Bump libfcitx5utils-dev to 5.0.1
+
+ -- Shengjing Zhu <zhsj@debian.org>  Sat, 07 Nov 2020 00:10:37 +0800
+
+fcitx5-gtk (0.0~git20200912.8835e96-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream snapshot
+  * Bump libfcitx5utils-dev to 0.0~git20201030
+  * Add patch to align libfcitx5gclient version with soversion
+  * Update libfcitx5gclient1.symbols
+
+ -- Shengjing Zhu <zhsj@debian.org>  Sat, 31 Oct 2020 22:57:16 +0800
+
+fcitx5-gtk (0.0~git20200819.d26dd52-1) unstable; urgency=medium
+
+  * Team upload.
+
+  [ Shengjing Zhu ]
+  * New upstream snapshot
+  * as-needed LDFLAGS is not needed since bullseye
+  * Change architecture from linux-any to any
+  * Update libfcitx5gclient1.symbols
+
+  [ Boyuan Yang ]
+  * debian/copyright: Consolidate copyright information
+
+ -- Shengjing Zhu <zhsj@debian.org>  Wed, 26 Aug 2020 12:01:39 +0800
+
+fcitx5-gtk (0.0~git20200606.fc335f1-2) unstable; urgency=medium
+
+  * Team upload.
+  * Add libbrotli-dev to Build-Depends
+
+ -- Shengjing Zhu <zhsj@debian.org>  Fri, 03 Jul 2020 13:22:37 +0800
+
+fcitx5-gtk (0.0~git20200606.fc335f1-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream snapshot. (Closes: #957197)
+  * Bump debhelper-compat to 13 and clean up d/rules
+  * Bump libfcitx5utils-dev to 0.0~git20200626
+  * Add missing libfcitx5gclient headers
+
+ -- Shengjing Zhu <zhsj@debian.org>  Thu, 02 Jul 2020 11:52:34 +0800
+
+fcitx5-gtk (0.0~git20200402.3e6795d-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream snapshot.
+  * Add libfcitx5gclient1.symbols
+
+ -- Shengjing Zhu <zhsj@debian.org>  Fri, 10 Apr 2020 22:36:11 +0800
+
+fcitx5-gtk (0.0~git20200319.22d30ef-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream snapshot.
+
+ -- Shengjing Zhu <zhsj@debian.org>  Tue, 24 Mar 2020 03:59:23 +0800
+
+fcitx5-gtk (0.0~git20200312.d36d72d-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream snapshot.
+  * Fix lintian: binary-control-field-duplicates-source
+
+ -- Shengjing Zhu <zhsj@debian.org>  Fri, 13 Mar 2020 15:48:17 +0800
+
+fcitx5-gtk (0.0~git20191111.6f9ef64-2) unstable; urgency=medium
+
+  * debian/control: Bump Standards-Version to 4.5.0.
+  * Source-only upload to allow testing migration.
+
+ -- Boyuan Yang <byang@debian.org>  Wed, 05 Feb 2020 16:54:09 -0500
+
+fcitx5-gtk (0.0~git20191111.6f9ef64-1) unstable; urgency=medium
+
+  * Initial release. (Closes: #949345)
+
+ -- Boyuan Yang <byang@debian.org>  Mon, 25 Nov 2019 23:10:27 -0500

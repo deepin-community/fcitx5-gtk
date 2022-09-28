@@ -1,0 +1,46 @@
+From: chenshijie <xingwozhonghua@126.com>
+Date: Wed, 16 Mar 2022 01:41:43 +0800
+Subject: fix: Compatible with glib 2.5.58 < 2.60 (#17)
+
+Co-authored-by: chenshijie <chenshijie@uniontech.com>
+---
+ gtk2/fcitximcontext.cpp | 7 ++++++-
+ gtk3/fcitximcontext.cpp | 7 ++++++-
+ 2 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/gtk2/fcitximcontext.cpp b/gtk2/fcitximcontext.cpp
+index fddd004..9ee9731 100644
+--- a/gtk2/fcitximcontext.cpp
++++ b/gtk2/fcitximcontext.cpp
+@@ -430,7 +430,12 @@ static void fcitx_im_context_finalize(GObject *obj) {
+     g_clear_pointer(&context->preedit_string, g_free);
+     g_clear_pointer(&context->surrounding_text, g_free);
+     g_clear_pointer(&context->attrlist, pango_attr_list_unref);
+-    g_queue_clear_full(&context->gdk_events, (GDestroyNotify)gdk_event_free);
++    /* https://github.com/GNOME/glib/blob/main/glib/gqueue.c#L164
++     * Compatible with glib 2.5.58 < 2.60
++     * g_queue_clear_full(&context->gdk_events,
++     * (GDestroyNotify)gdk_event_free);*/
++    g_queue_foreach(&context->gdk_events, (GFunc)gdk_event_free, NULL);
++    g_queue_clear(&context->gdk_events);
+ 
+     G_OBJECT_CLASS(parent_class)->finalize(obj);
+ }
+diff --git a/gtk3/fcitximcontext.cpp b/gtk3/fcitximcontext.cpp
+index 6557115..b615142 100644
+--- a/gtk3/fcitximcontext.cpp
++++ b/gtk3/fcitximcontext.cpp
+@@ -495,7 +495,12 @@ static void fcitx_im_context_finalize(GObject *obj) {
+     g_clear_pointer(&context->preedit_string, g_free);
+     g_clear_pointer(&context->surrounding_text, g_free);
+     g_clear_pointer(&context->attrlist, pango_attr_list_unref);
+-    g_queue_clear_full(&context->gdk_events, (GDestroyNotify)gdk_event_free);
++    /* https://github.com/GNOME/glib/blob/main/glib/gqueue.c#L164
++     * Compatible with glib 2.5.58 < 2.60
++     * g_queue_clear_full(&context->gdk_events,
++     * (GDestroyNotify)gdk_event_free);*/
++    g_queue_foreach(&context->gdk_events, (GFunc)gdk_event_free, NULL);
++    g_queue_clear(&context->gdk_events);
+ 
+     G_OBJECT_CLASS(parent_class)->finalize(obj);
+ }
