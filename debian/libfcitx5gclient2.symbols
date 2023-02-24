@@ -1,7 +1,5 @@
 libFcitx5GClient.so.2 libfcitx5gclient2 #MINVER#
 * Build-Depends-Package: libfcitx5gclient-dev
- buildCandidateArray@Base 0.0~git20200819.d26dd52
- buildFormattedTextArray@Base 0.0~git20200819.d26dd52
  fcitx_g_client_focus_in@Base 0.0~git20200402.3e6795d
  fcitx_g_client_focus_out@Base 0.0~git20200402.3e6795d
  fcitx_g_client_get_type@Base 0.0~git20200402.3e6795d
@@ -22,6 +20,7 @@ libFcitx5GClient.so.2 libfcitx5gclient2 #MINVER#
  fcitx_g_client_set_display@Base 0.0~git20200402.3e6795d
  fcitx_g_client_set_program@Base 0.0~git20200402.3e6795d
  fcitx_g_client_set_surrounding_text@Base 0.0~git20200402.3e6795d
+ fcitx_g_client_set_use_batch_process_key_event@Base 5.0.20
  fcitx_g_watcher_get_connection@Base 0.0~git20200402.3e6795d
  fcitx_g_watcher_get_service_name@Base 0.0~git20200402.3e6795d
  fcitx_g_watcher_get_type@Base 0.0~git20200402.3e6795d

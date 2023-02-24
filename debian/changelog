@@ -1,12 +1,65 @@
-fcitx5-gtk (5.0.13-1+u001) UNRELEASED; urgency=medium
+fcitx5-gtk (5.0.21-1) unstable; urgency=medium
 
-  * update
+  * New upstream release.
 
- -- Debian Input Method Team <debian-input-method@lists.debian.org>  Fri, 22 Apr 2022 15:35:22 +0800
+ -- Boyuan Yang <byang@debian.org>  Thu, 24 Nov 2022 15:41:10 -0500
+
+fcitx5-gtk (5.0.20-1) unstable; urgency=medium
+
+  * New upstream release.
+  * debian/symbols: Add new symbol.
+
+ -- Boyuan Yang <byang@debian.org>  Wed, 23 Nov 2022 12:30:37 -0500
+
+fcitx5-gtk (5.0.19-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Boyuan Yang <byang@debian.org>  Mon, 26 Sep 2022 16:20:48 -0400
+
+fcitx5-gtk (5.0.18-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Switch to upstream tarball as upstream.
+  * debian/patches: Drop old patches, not needed.
+
+ -- Boyuan Yang <byang@debian.org>  Tue, 13 Sep 2022 13:22:45 -0400
+
+fcitx5-gtk (5.0.17-1) unstable; urgency=medium
+
+  * New upstream release.
+  * debian/rules: Pass -DCMAKE_BUILD_RPATH_USE_ORIGIN=ON via
+    dh_auto_configure override. (Closes: #1001867)
+  * debian/control: Bump Standards-Version to 4.6.1.
+  * debian/patches: Backport upstream commits to fix FTBFS.
+  * debian/libfcitx5gclient2.symbols: Update symbols to hide
+    private symbols accordingly.
+
+ -- Boyuan Yang <byang@debian.org>  Wed, 03 Aug 2022 17:10:57 -0400
+
+fcitx5-gtk (5.0.16-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Boyuan Yang <byang@debian.org>  Fri, 08 Jul 2022 21:55:47 -0400
+
+fcitx5-gtk (5.0.15-1) unstable; urgency=medium
+
+  * New upstream release.
+  * debian/libfcitx5gclient2.symbols: Add new symbol.
+
+ -- Boyuan Yang <byang@debian.org>  Thu, 02 Jun 2022 16:38:06 -0400
+
+fcitx5-gtk (5.0.14-1) unstable; urgency=medium
+
+  * New upstream release.
+  * debian/patches: Drop cherry-picked patch.
+
+ -- Boyuan Yang <byang@debian.org>  Tue, 24 May 2022 22:27:04 -0400
 
 fcitx5-gtk (5.0.13-1) unstable; urgency=medium
 
-  * New upstream release. 
+  * New upstream release.
   * debian/patches: Cherry-pick compatibility patch with older glib.
 
  -- Boyuan Yang <byang@debian.org>  Wed, 16 Mar 2022 09:17:40 -0400
