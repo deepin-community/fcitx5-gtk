@@ -125,6 +125,8 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *slave,
                                              int offset_from_cursor,
                                              guint nchars,
                                              FcitxIMContext *context);
+static void _fcitx_im_context_commit_string(FcitxIMContext *context,
+                                            const char *str);
 static void _fcitx_im_context_commit_string_cb(FcitxGClient *client, char *str,
                                                void *user_data);
 static void _fcitx_im_context_forward_key_cb(FcitxGClient *client, guint keyval,
@@ -448,10 +450,10 @@ static void fcitx_im_context_set_client_widget(GtkIMContext *context,
 
     delete fcitxcontext->candidate_window;
     fcitxcontext->candidate_window = nullptr;
+    g_clear_object(&fcitxcontext->client_widget);
     if (!client_widget)
         return;
 
-    g_clear_object(&fcitxcontext->client_widget);
     fcitxcontext->client_widget = GTK_WIDGET(g_object_ref(client_widget));
 
     _fcitx_im_context_set_capability(fcitxcontext, FALSE);
@@ -839,34 +841,49 @@ static gboolean _set_cursor_location_internal(FcitxIMContext *fcitxcontext) {
         !fcitx_g_client_is_valid(fcitxcontext->client)) {
         return FALSE;
     }
-
-    auto *root = gtk_widget_get_root(fcitxcontext->client_widget);
-    if (!root) {
-        return FALSE;
-    }
-
-    area = fcitxcontext->area;
-
     int scale = gtk_widget_get_scale_factor(fcitxcontext->client_widget);
     GdkDisplay *display = gtk_widget_get_display(fcitxcontext->client_widget);
+
+    auto *native = gtk_widget_get_native(fcitxcontext->client_widget);
+
+    if (!native) {
+        return FALSE;
+    }
+    area = fcitxcontext->area;
+    auto surface = gtk_native_get_surface(native);
+    if (!surface) {
+        return FALSE;
+    }
+    // Get coordinate against the current window.
     double px, py;
     gtk_widget_translate_coordinates(fcitxcontext->client_widget,
-                                     GTK_WIDGET(root), area.x, area.y, &px,
+                                     GTK_WIDGET(native), area.x, area.y, &px,
                                      &py);
+    area.x = px;
+    area.y = py;
     // Add frame.
     double offsetX = 0, offsetY = 0;
-    if (auto native = gtk_widget_get_native(GTK_WIDGET(root))) {
-        gtk_native_get_surface_transform(native, &offsetX, &offsetY);
+    gtk_native_get_surface_transform(native, &offsetX, &offsetY);
+    area.x += offsetX;
+    area.y += offsetY;
+
+    // gtk_widget_translate_coordinates does not give meaningful value across
+    // difference surface, do our own calculation.
+    while (surface && GDK_IS_POPUP(surface)) {
+        auto *popup = GDK_POPUP(surface);
+        area.x += gdk_popup_get_position_x(popup);
+        area.y += gdk_popup_get_position_y(popup);
+        surface = gdk_popup_get_parent(popup);
     }
-    area.x = px + offsetX;
-    area.y = py + offsetY;
+
 #ifdef GDK_WINDOWING_X11
     if (GDK_IS_X11_DISPLAY(display)) {
-        if (auto *native = gtk_widget_get_native(GTK_WIDGET(root))) {
-            if (auto *surface = gtk_native_get_surface(native);
+        if (auto *native = gtk_widget_get_root(fcitxcontext->client_widget)) {
+            if (auto *surface = gtk_native_get_surface(GTK_NATIVE(native));
                 surface && GDK_IS_X11_SURFACE(surface)) {
-                if (area.x == -1 && area.y == -1 && area.width == 0 &&
-                    area.height == 0) {
+                if (fcitxcontext->area.x == -1 && fcitxcontext->area.y == -1 &&
+                    fcitxcontext->area.width == 0 &&
+                    fcitxcontext->area.height == 0) {
                     area.x = 0;
                     area.y += gdk_surface_get_height(surface);
                 }
@@ -1087,6 +1104,10 @@ void _fcitx_im_context_set_capability(FcitxIMContext *fcitxcontext,
 static void fcitx_im_context_reset(GtkIMContext *context) {
     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
 
+    if (fcitxcontext->ignore_reset) {
+        return;
+    }
+
     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
         fcitx_g_client_reset(fcitxcontext->client);
     }
@@ -1188,10 +1209,16 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *,
     return return_value;
 }
 
+void _fcitx_im_context_commit_string(FcitxIMContext *context, const char *str) {
+    context->ignore_reset = TRUE;
+    g_signal_emit(context, _signal_commit_id, 0, str);
+    context->ignore_reset = FALSE;
+}
+
 void _fcitx_im_context_commit_string_cb(FcitxGClient *, char *str,
                                         void *user_data) {
     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
-    g_signal_emit(context, _signal_commit_id, 0, str);
+    _fcitx_im_context_commit_string(context, str);
 
     // Better request surrounding after commit.
     g_idle_add_full(G_PRIORITY_DEFAULT_IDLE,

@@ -6,6 +6,7 @@
  */
 #include "gtk4inputwindow.h"
 #include <gtk/gtk.h>
+#include <gtk3/fcitxtheme.h>
 
 namespace fcitx::gtk {
 
@@ -19,6 +20,8 @@ Gtk4InputWindow::~Gtk4InputWindow() {
         g_signal_handlers_disconnect_by_data(window_.get(), this);
         gdk_surface_destroy(window_.release());
     }
+    // Clean up weak pointer.
+    setParent(nullptr);
 }
 
 void Gtk4InputWindow::draw(cairo_t *cr) { paint(cr, width_, height_); }
@@ -43,7 +46,7 @@ void Gtk4InputWindow::setCursorRect(GdkRectangle rect) {
     if (!parent_) {
         return;
     }
-    auto *root = gtk_widget_get_root(parent_);
+    auto *root = gtk_widget_get_native(parent_);
     if (!root) {
         return;
     }
@@ -58,7 +61,22 @@ void Gtk4InputWindow::setCursorRect(GdkRectangle rect) {
     }
     rect.x = px + offsetX;
     rect.y = py + offsetX;
+
+    // Sanitize the rect value to workaround a mutter bug:
+    // https://gitlab.gnome.org/GNOME/mutter/-/issues/2525
+    // The procedure make sure the rect is with in the parent window region.
+    const int rootWidth = gtk_widget_get_width(GTK_WIDGET(root));
+    const int rootHeight = gtk_widget_get_height(GTK_WIDGET(root));
+    if (rootWidth <= 0 || rootHeight <= 0) {
+        return;
+    }
+    rect.x = CLAMP(rect.x, 0, rootWidth - 1);
+    rect.y = CLAMP(rect.y, 0, rootHeight - 1);
+    rect.width = CLAMP(rect.width, 0, rootWidth - rect.x);
+    rect.height = CLAMP(rect.height, 0, rootHeight - rect.y);
+
     rect_ = rect;
+
     if (window_) {
         reposition();
     }
@@ -72,6 +90,10 @@ void Gtk4InputWindow::update() {
 
     syncFontOptions();
     std::tie(width_, height_) = sizeHint();
+    if (width_ <= 0 || height_ <= 0) {
+        resetWindow();
+        return;
+    }
     auto native = gtk_widget_get_native(parent_);
     if (!native) {
         return;
@@ -143,6 +165,12 @@ void Gtk4InputWindow::reposition() {
     gdk_popup_layout_set_anchor_hints(
         popupLayout,
         static_cast<GdkAnchorHints>(GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y));
+
+    gdk_popup_layout_set_shadow_width(
+        popupLayout, config_->theme_.shadowMargin.marginLeft,
+        config_->theme_.shadowMargin.marginRight,
+        config_->theme_.shadowMargin.marginTop,
+        config_->theme_.shadowMargin.marginBottom);
     gdk_popup_present(GDK_POPUP(window_.get()), width_, height_, popupLayout);
     gdk_popup_layout_unref(popupLayout);
 }
