@@ -12,6 +12,7 @@ namespace fcitx::gtk {
 
 Gtk4InputWindow::Gtk4InputWindow(ClassicUIConfig *config, FcitxGClient *client)
     : InputWindow(config, client) {
+    rect_.x = rect_.y = rect_.height = rect_.width = 0;
     dummyWidget_.reset(GTK_WINDOW(gtk_window_new()));
 }
 
@@ -72,8 +73,8 @@ void Gtk4InputWindow::setCursorRect(GdkRectangle rect) {
     }
     rect.x = CLAMP(rect.x, 0, rootWidth - 1);
     rect.y = CLAMP(rect.y, 0, rootHeight - 1);
-    rect.width = CLAMP(rect.width, 0, rootWidth - rect.x);
-    rect.height = CLAMP(rect.height, 0, rootHeight - rect.y);
+    rect.width = CLAMP(rect.width, 1, rootWidth - rect.x);
+    rect.height = CLAMP(rect.height, 1, rootHeight - rect.y);
 
     rect_ = rect;
 
