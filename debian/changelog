@@ -1,3 +1,28 @@
+fcitx5-gtk (5.1.0-1) unstable; urgency=medium
+
+  * Upload to unstable.
+
+ -- Boyuan Yang <byang@debian.org>  Tue, 22 Aug 2023 08:04:20 -0400
+
+fcitx5-gtk (5.1.0-1~exp1) experimental; urgency=medium
+
+  * New upstream release.
+  * debian/install: Install /usr/bin/fcitx5-gtk*-immodule-probing.
+
+ -- Boyuan Yang <byang@debian.org>  Mon, 21 Aug 2023 22:39:11 -0400
+
+fcitx5-gtk (5.0.23-1) unstable; urgency=medium
+
+  * Upload to unstable.
+
+ -- Boyuan Yang <byang@debian.org>  Wed, 14 Jun 2023 20:31:35 -0400
+
+fcitx5-gtk (5.0.23-1~exp1) experimental; urgency=medium
+
+  * New upstream release.
+
+ -- Boyuan Yang <byang@debian.org>  Tue, 04 Apr 2023 10:07:50 -0400
+
 fcitx5-gtk (5.0.21-1) unstable; urgency=medium
 
   * New upstream release.
