@@ -1,26 +1,28 @@
 Source: fcitx5-gtk
 Section: utils
-Priority: optional
 Maintainer: Debian Input Method Team <debian-input-method@lists.debian.org>
 Uploaders:
  Boyuan Yang <byang@debian.org>,
 Build-Depends:
- cmake,
  debhelper-compat (= 13),
+ dh-sequence-gir,
+ cmake,
  extra-cmake-modules,
- gobject-introspection,
+ gir1.2-gio-2.0-dev <!nogir>,
+ gir1.2-glib-2.0-dev <!nogir>,
+ gir1.2-gobject-2.0-dev <!nogir>,
+ gobject-introspection (>= 1.80) <!nogir>,
  libbrotli-dev,
  libfmt-dev,
- libgirepository1.0-dev,
+ libglib2.0-dev,
  libgtk-3-dev,
  libgtk-4-dev,
  libgtk2.0-dev,
  libx11-dev,
  libxkbcommon-dev,
  libxkbcommon-x11-dev,
- pkg-config,
-Rules-Requires-Root: no
-Standards-Version: 4.6.2
+ pkgconf,
+Standards-Version: 4.7.3
 Homepage: https://github.com/fcitx/fcitx5-gtk
 Vcs-Git: https://salsa.debian.org/input-method-team/fcitx5-gtk.git
 Vcs-Browser: https://salsa.debian.org/input-method-team/fcitx5-gtk
@@ -95,7 +97,8 @@ Multi-Arch: same
 Depends:
  ${gir:Depends},
  ${misc:Depends},
- ${shlibs:Depends},
+Provides:
+ ${gir:Provides},
 Description: GObject introspection data for fcitx5
  Fcitx5 is the next generation of fcitx input method framework. It
  provides pleasant and modern input experience with intuitive graphical
@@ -118,7 +121,10 @@ Architecture: any
 Multi-Arch: same
 Depends:
  gir1.2-fcitxg-1.0 (= ${binary:Version}),
+ ${gir:Depends},
  ${misc:Depends},
+Provides:
+ ${gir:Provides},
 Description: GLib-based D-Bus client library for fcitx5 (development files)
  Fcitx5 is the next generation of fcitx input method framework. It
  provides pleasant and modern input experience with intuitive graphical

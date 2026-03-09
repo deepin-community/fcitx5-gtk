@@ -61,7 +61,7 @@ void Gtk4InputWindow::setCursorRect(GdkRectangle rect) {
         gtk_native_get_surface_transform(native, &offsetX, &offsetY);
     }
     rect.x = px + offsetX;
-    rect.y = py + offsetX;
+    rect.y = py + offsetY;
 
     // Sanitize the rect value to workaround a mutter bug:
     // https://gitlab.gnome.org/GNOME/mutter/-/issues/2525
@@ -165,7 +165,8 @@ void Gtk4InputWindow::reposition() {
                                             GDK_GRAVITY_NORTH_WEST);
     gdk_popup_layout_set_anchor_hints(
         popupLayout,
-        static_cast<GdkAnchorHints>(GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y));
+        static_cast<GdkAnchorHints>(GDK_ANCHOR_SLIDE_X | GDK_ANCHOR_FLIP_Y |
+                                    GDK_ANCHOR_SLIDE_Y));
 
     gdk_popup_layout_set_shadow_width(
         popupLayout, config_->theme_.shadowMargin.marginLeft,
