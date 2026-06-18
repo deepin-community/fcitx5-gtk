@@ -1,0 +1,555 @@
+Description: XTest fallback for Chromium password fields (X11)
+ Chromium password fields reject commit-text injected by the IM module, so
+ single-char commits never reach the field. Add a shared XTest helper under
+ gtk-common/ used by both the gtk2 and gtk3 IM modules:
+ .
+ commit_string_cb: empty string is dropped; a multi-char string (e.g. a CJK
+ candidate word) is committed normally; a single char is injected via XTest
+ (XTestFakeKeyEvent), reverse-mapped to a keycode + optional Shift through
+ the current X keymap, falling back to a normal commit when XTest is
+ unavailable, non-X11, or the char has no base/shift mapping.
+ .
+ forward_key_cb: when there is no GdkWindow, synthesize the key via XTest on
+ the press request and ignore the release to avoid Chromium replay loops.
+ .
+ A TTL self-injection queue (500ms, not consumed on lookup) lets both
+ filter_keypress and _key_snooper_cb recognize synthetic events and skip
+ fcitx re-processing. GDK modifier bits are translated explicitly
+ (Shift/Control/Mod1); LockMask and Super/Hyper/Meta are dropped. Display
+ comes from GDK, never XOpenDisplay. X11/XTest are wrapped in
+ #ifdef GDK_WINDOWING_X11 so the helper is a no-op on non-X11 gtk3 builds.
+ Limitation: only chars producible at base/shift level are injectable; CJK /
+ AltGr chars fall back to commit. X11 only.
+Origin: other, backport of openkylin/nile-sp2 virtual-keyboard flow
+Author: liulinsong <liulinsong@kylinos.cn>
+Forwarded: not-needed
+Last-Update: 2026-06-23
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 04e8e15..9511ff5 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -45,12 +45,14 @@ endif()
+ add_subdirectory(fcitx-gclient)
+ 
+ set(NEED_X11 FALSE)
++set(NEED_XTST FALSE)
+ if (ENABLE_GTK2_IM_MODULE)
+     pkg_check_modules(Gtk2 REQUIRED IMPORTED_TARGET "gtk+-2.0")
+     pkg_check_modules(Gdk2 REQUIRED IMPORTED_TARGET "gdk-2.0")
+     pkg_check_modules(Gdk2X11 REQUIRED IMPORTED_TARGET "gdk-x11-2.0")
+     pkg_get_variable(GTK2_BINARY_VERSION "gtk+-2.0" "gtk_binary_version")
+     set(NEED_X11 TRUE)
++    set(NEED_XTST TRUE)
+ endif()
+ 
+ if (ENABLE_GTK3_IM_MODULE)
+@@ -60,6 +62,7 @@ if (ENABLE_GTK3_IM_MODULE)
+     pkg_get_variable(GTK3_TARGETS "gtk+-3.0" "targets")
+     if (GTK3_TARGETS MATCHES "x11")
+         set(NEED_X11 TRUE)
++        set(NEED_XTST TRUE)
+         pkg_check_modules(Gdk3X11 REQUIRED IMPORTED_TARGET "gdk-x11-3.0")
+     endif()
+ endif()
+@@ -82,6 +85,10 @@ if (NEED_X11)
+         INTERFACE_INCLUDE_DIRECTORIES "${X11_X11_INCLUDE_PATH}")
+ endif()
+ 
++if (NEED_XTST)
++    pkg_check_modules(XTST REQUIRED IMPORTED_TARGET xtst)
++endif()
++
+ if (ENABLE_GTK2_IM_MODULE)
+ add_subdirectory(gtk2)
+ endif()
+diff --git a/gtk-common/xtesthelper.cpp b/gtk-common/xtesthelper.cpp
+new file mode 100644
+index 0000000..bb30803
+--- /dev/null
++++ b/gtk-common/xtesthelper.cpp
+@@ -0,0 +1,232 @@
++/*
++ * SPDX-FileCopyrightText: 2026 fcitx5-gtk contributors
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++/*
++ * XTest key injection helper, shared by the gtk2 and gtk3 IM modules.
++ *
++ * X11 only. All X11 / XTest types, includes and implementation are wrapped in
++ * #ifdef GDK_WINDOWING_X11 so the file still compiles (as no-ops) on a non-X11
++ * gtk target. The self-injection queue does not depend on X11 and is always
++ * compiled.
++ */
++
++#include "xtesthelper.h"
++
++#include <gdk/gdk.h>
++#include <gtk/gtk.h>
++
++/* ------------------------------------------------------------------ */
++/* Self-injection queue (recursion guard, X11-independent)            */
++/* ------------------------------------------------------------------ */
++
++namespace {
++struct SelfEvent {
++    guint keycode;
++    guint8 is_press;
++    gint64 deadline_us; /* monotonic expiry, g_get_monotonic_time() */
++};
++
++/* A synthetic event can be observed by BOTH _key_snooper_cb and
++ * filter_keypress. Records are therefore NOT consumed on lookup; they expire
++ * by TTL. This avoids snooper eating the record before filter_keypress sees it
++ * (which would re-feed the key to fcitx). The MAX cap is a backstop for
++ * events that never loop back. */
++constexpr gint64 kSelfTtlUs = 500 * G_TIME_SPAN_MILLISECOND; /* 500ms */
++constexpr gsize kMaxSelfEvents = 30;
++GQueue selfQueue = G_QUEUE_INIT;
++GMutex selfMutex;
++
++void recordSelfInjection(guint hardware_keycode, gboolean is_press) {
++    auto *e = g_new(SelfEvent, 1);
++    e->keycode = hardware_keycode;
++    e->is_press = is_press ? 1 : 0;
++    e->deadline_us = g_get_monotonic_time() + kSelfTtlUs;
++    g_mutex_lock(&selfMutex);
++    g_queue_push_tail(&selfQueue, e);
++    while (g_queue_get_length(&selfQueue) > kMaxSelfEvents) {
++        g_free(g_queue_pop_head(&selfQueue));
++    }
++    g_mutex_unlock(&selfMutex);
++}
++} /* namespace */
++
++gboolean _xtest_is_self_injected(guint hardware_keycode, gboolean is_press) {
++    gboolean found = FALSE;
++    guint8 press = is_press ? 1 : 0;
++    gint64 now = g_get_monotonic_time();
++    g_mutex_lock(&selfMutex);
++    /* A match only counts while its record is alive. Expired entries are
++     * reaped unconditionally. Records are not removed on a live match, so
++     * both _key_snooper_cb and filter_keypress can recognize the same event. */
++    for (GList *l = selfQueue.head; l != nullptr;) {
++        auto *e = static_cast<SelfEvent *>(l->data);
++        GList *next = l->next;
++        gboolean alive = (e->deadline_us >= now);
++        if (alive && e->keycode == hardware_keycode && e->is_press == press) {
++            found = TRUE;
++        }
++        if (!alive) {
++            g_free(e);
++            g_queue_delete_link(&selfQueue, l);
++        }
++        l = next;
++    }
++    g_mutex_unlock(&selfMutex);
++    return found;
++}
++
++/* ------------------------------------------------------------------ */
++/* X11 / XTest implementation                                         */
++/* ------------------------------------------------------------------ */
++
++#ifdef GDK_WINDOWING_X11
++
++#include <X11/XKBlib.h>
++#include <X11/Xlib.h>
++#include <X11/keysym.h>
++#include <X11/extensions/XTest.h>
++#include <gdk/gdkx.h>
++
++static Display *xtest_get_display() {
++    GdkDisplay *gdkDisplay = gdk_display_get_default();
++    if (!gdkDisplay) {
++        return nullptr;
++    }
++#if GTK_CHECK_VERSION(3, 0, 0)
++    if (!GDK_IS_X11_DISPLAY(gdkDisplay)) {
++        return nullptr;
++    }
++#else
++    /* gtk2 has no GDK_IS_X11_DISPLAY macro; probe at runtime. */
++    GType x11type = g_type_from_name("GdkDisplayX11");
++    if (x11type == 0 || !G_TYPE_CHECK_INSTANCE_TYPE(gdkDisplay, x11type)) {
++        return nullptr;
++    }
++#endif
++    return GDK_DISPLAY_XDISPLAY(gdkDisplay);
++}
++
++static gboolean xtest_query(Display *dpy) {
++    int eventBase = 0, errorBase = 0, major = 0, minor = 0;
++    return XTestQueryExtension(dpy, &eventBase, &errorBase, &major, &minor);
++}
++
++/* Display and XTest availability are stable for the process lifetime. Resolve
++ * them once so the commit path does not do an XTestQueryExtension server
++ * round-trip (plus display lookup) for every committed char. Stays unresolved
++ * until both succeed, so an early call before the display is ready can retry. */
++static gboolean xtest_ready(Display **out) {
++    static Display *cached = nullptr;
++    static gboolean ok = FALSE;
++    if (!ok) {
++        Display *dpy = xtest_get_display();
++        if (dpy && xtest_query(dpy)) {
++            cached = dpy;
++            ok = TRUE;
++        }
++    }
++    *out = cached;
++    return ok;
++}
++
++/*
++ * latch / fake / unlatch in one place. Once latched, unlatch must always run
++ * (regardless of XTestFakeKeyEvent's return) so a stuck modifier does not
++ * poison later real keypresses. Records are pushed BEFORE faking so the
++ * synthetic event cannot loop back to GTK before the queue is populated.
++ */
++static gboolean xtest_send_keycode(Display *dpy, KeyCode kc, unsigned int xstate) {
++    XkbLatchModifiers(dpy, XkbUseCoreKbd, xstate, xstate);
++    recordSelfInjection(kc, TRUE);
++    gboolean ok = XTestFakeKeyEvent(dpy, kc, True, 0);
++    XkbLatchModifiers(dpy, XkbUseCoreKbd, xstate, xstate);
++    recordSelfInjection(kc, FALSE);
++    ok = XTestFakeKeyEvent(dpy, kc, False, 0) && ok;
++    XSync(dpy, False);
++    XkbLatchModifiers(dpy, XkbUseCoreKbd, xstate, 0);
++    XSync(dpy, False);
++    return ok;
++}
++
++struct KeyResolve {
++    KeyCode keycode;
++    gboolean need_shift;
++};
++
++/* Map a KeySym to the physical keycode that produces it. Use shifted level
++ * only to decide whether Shift is needed; do not reject the keycode if
++ * base/shift do not match, since some X keymaps still produce usable keycodes
++ * via XKeysymToKeycode(). */
++static gboolean xtest_resolve_char(Display *dpy, KeySym ks, KeyResolve *out) {
++    KeyCode kc = XKeysymToKeycode(dpy, ks);
++    if (kc == 0) {
++        return FALSE;
++    }
++    KeySym base = XKeycodeToKeysym(dpy, kc, 0);
++    KeySym shifted = XKeycodeToKeysym(dpy, kc, 1);
++    out->keycode = kc;
++    out->need_shift = (base != ks && shifted == ks);
++    return TRUE;
++}
++
++/* Translate the GDK modifier bits we trust into X modifier masks. LockMask
++ * (CapsLock) and the GDK Super/Hyper/Meta bits are intentionally dropped. */
++static unsigned int xtest_state_from_gdk(guint state) {
++    unsigned int xstate = 0;
++    if (state & GDK_SHIFT_MASK) {
++        xstate |= ShiftMask;
++    }
++    if (state & GDK_CONTROL_MASK) {
++        xstate |= ControlMask;
++    }
++    if (state & GDK_MOD1_MASK) {
++        xstate |= Mod1Mask;
++    }
++    return xstate;
++}
++
++gboolean _xtest_forward_key(struct _FcitxIMContext *, guint keyval, guint state) {
++    Display *dpy;
++    if (!xtest_ready(&dpy)) {
++        return FALSE;
++    }
++    KeyCode kc = XKeysymToKeycode(dpy, keyval);
++    if (kc == 0) {
++        return FALSE;
++    }
++    return xtest_send_keycode(dpy, kc, xtest_state_from_gdk(state));
++}
++
++gboolean _xtest_commit_char(struct _FcitxIMContext *, gunichar ch) {
++    if (ch == 0) {
++        return FALSE;
++    }
++    Display *dpy;
++    if (!xtest_ready(&dpy)) {
++        return FALSE;
++    }
++    KeySym ks = static_cast<KeySym>(gdk_unicode_to_keyval(ch));
++    if (ks == 0 || ks == NoSymbol) {
++        return FALSE;
++    }
++    KeyResolve r;
++    if (!xtest_resolve_char(dpy, ks, &r)) {
++        return FALSE;
++    }
++    return xtest_send_keycode(dpy, r.keycode, r.need_shift ? ShiftMask : 0);
++}
++
++#else /* !GDK_WINDOWING_X11 */
++
++gboolean _xtest_forward_key(struct _FcitxIMContext *, guint, guint) {
++    return FALSE;
++}
++
++gboolean _xtest_commit_char(struct _FcitxIMContext *, gunichar) {
++    return FALSE;
++}
++
++#endif /* GDK_WINDOWING_X11 */
+diff --git a/gtk-common/xtesthelper.h b/gtk-common/xtesthelper.h
+new file mode 100644
+index 0000000..8fa3b1a
+--- /dev/null
++++ b/gtk-common/xtesthelper.h
+@@ -0,0 +1,40 @@
++/*
++ * SPDX-FileCopyrightText: 2026 fcitx5-gtk contributors
++ *
++ * SPDX-License-Identifier: LGPL-2.1-or-later
++ */
++
++#ifndef FCITX_GTK_XTEST_HELPER_H
++#define FCITX_GTK_XTEST_HELPER_H
++
++#include <glib.h>
++
++G_BEGIN_DECLS
++
++struct _FcitxIMContext; /* opaque */
++
++/*
++ * XTest key injection helpers used as a fallback when the target application
++ * does not expose a GdkWindow (e.g. Chromium password fields). X11 only; on
++ * Wayland / non-X11 builds these are no-ops returning FALSE.
++ */
++
++/* ForwardKey path: keyval + state already carry the GDK modifier bits. */
++gboolean _xtest_forward_key(struct _FcitxIMContext *context, guint keyval,
++                            guint state);
++
++/* Commit path: reverse-map a single unicode char to a keycode + optional
++ * Shift. Returns FALSE when the char cannot be produced at the base or
++ * shifted level of the current X keymap (e.g. CJK). */
++gboolean _xtest_commit_char(struct _FcitxIMContext *context, gunichar ch);
++
++/* Recursion guard: returns TRUE while a matching self-injection record is
++ * alive (within its TTL). Not consumed on lookup -- a synthetic event is seen
++ * by both _key_snooper_cb and filter_keypress, so both must recognize it.
++ * Called at the top of filter_keypress / _key_snooper_cb to avoid re-processing
++ * the synthetic event through fcitx. */
++gboolean _xtest_is_self_injected(guint hardware_keycode, gboolean is_press);
++
++G_END_DECLS
++
++#endif
+diff --git a/gtk2/CMakeLists.txt b/gtk2/CMakeLists.txt
+index dbfc894..80c1f6e 100644
+--- a/gtk2/CMakeLists.txt
++++ b/gtk2/CMakeLists.txt
+@@ -1,6 +1,7 @@
+ set(FCITX_GTK2_IM_MODULE_SOURCES
+   fcitxim.c
+   fcitximcontext.cpp
++  ../gtk-common/xtesthelper.cpp
+   )
+ 
+ if (NOT DEFINED GTK2_IM_MODULEDIR)
+@@ -10,7 +11,7 @@ endif()
+ add_library(im-fcitx5 MODULE ${FCITX_GTK2_IM_MODULE_SOURCES})
+ set_target_properties( im-fcitx5 PROPERTIES PREFIX ""
+   COMPILE_FLAGS "-fno-exceptions")
+-target_link_libraries(im-fcitx5 Fcitx5::GClient XKBCommon::XKBCommon PkgConfig::Gtk2 PkgConfig::Gdk2 PkgConfig::Gdk2X11 X11Import)
++target_link_libraries(im-fcitx5 Fcitx5::GClient XKBCommon::XKBCommon PkgConfig::Gtk2 PkgConfig::Gdk2 PkgConfig::Gdk2X11 X11Import PkgConfig::XTST)
+ install(TARGETS im-fcitx5 DESTINATION "${GTK2_IM_MODULEDIR}")
+ 
+ 
+diff --git a/gtk2/fcitximcontext.cpp b/gtk2/fcitximcontext.cpp
+index f38b753..cf8f477 100644
+--- a/gtk2/fcitximcontext.cpp
++++ b/gtk2/fcitximcontext.cpp
+@@ -18,6 +18,7 @@
+ #include "fcitx-gclient/fcitxgwatcher.h"
+ #include "fcitximcontext.h"
+ #include "utils.h"
++#include "gtk-common/xtesthelper.h"
+ #include <gdk/gdk.h>
+ #include <gdk/gdkkeysyms.h>
+ #include <gdk/gdkx.h>
+@@ -503,6 +504,14 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
+                                                  GdkEventKey *event) {
+     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
+ 
++    /* Recursion guard: must precede the client_window workaround below, which
++     * would otherwise adopt a synthetic event's window. Drop events we just
++     * injected via XTest so fcitx does not re-process them. */
++    if (_xtest_is_self_injected(event->hardware_keycode,
++                                event->type == GDK_KEY_PRESS)) {
++        return FALSE;
++    }
++
+     /* check this first, since we use key snooper, most key will be handled. */
+     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
+         /* XXX it is a workaround for some applications do not set client
+@@ -1181,12 +1190,41 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *,
+ void _fcitx_im_context_commit_string_cb(FcitxGClient *, char *str,
+                                         void *user_data) {
+     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
+-    fcitx_im_context_commit_string(context, str);
++
++    if (str == nullptr || *str == 0) {
++        return;
++    }
++
++    /* Multi-char string (e.g. a CJK word from candidates): commit directly.
++     * XTest per-char is not appropriate. Only a single char tries XTest,
++     * which lets Chromium password fields receive input they would otherwise
++     * reject when injected as commit-text. */
++    if (g_utf8_strlen(str, -1) > 1) {
++        fcitx_im_context_commit_string(context, str);
++        return;
++    }
++
++    gunichar ch = g_utf8_get_char(str);
++    if (!_xtest_commit_char(context, ch)) {
++        fcitx_im_context_commit_string(context, str);
++    }
+ }
+ 
+ void _fcitx_im_context_forward_key_cb(FcitxGClient *, guint keyval, guint state,
+                                       gboolean isRelease, void *user_data) {
+     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
++
++    /* No GdkWindow (Chromium password field): GDK injection is a no-op. Fall
++     * back to XTest, synthesizing press+release on the press request and
++     * ignoring the release request to avoid Chromium getting stuck replaying
++     * key-press events. */
++    if (context->client_window == nullptr) {
++        if (!isRelease) {
++            _xtest_forward_key(context, keyval, state);
++        }
++        return;
++    }
++
+     GdkEventKey *event = _create_gdk_event(context, keyval, state, isRelease);
+     event->state |= (guint32)IgnoredMask;
+     gdk_event_put((GdkEvent *)event);
+@@ -1465,6 +1503,11 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
+     if (fcitxcontext == NULL || !fcitxcontext->has_focus)
+         return FALSE;
+ 
++    if (_xtest_is_self_injected(event->hardware_keycode,
++                                event->type == GDK_KEY_PRESS)) {
++        return FALSE;
++    }
++
+     if (G_UNLIKELY(event->state & (guint32)HandledMask))
+         return TRUE;
+ 
+diff --git a/gtk3/CMakeLists.txt b/gtk3/CMakeLists.txt
+index da9ba6f..c491180 100644
+--- a/gtk3/CMakeLists.txt
++++ b/gtk3/CMakeLists.txt
+@@ -5,6 +5,7 @@ set(FCITX_GTK3_IM_MODULE_SOURCES
+   utils.cpp
+   inputwindow.cpp
+   gtk3inputwindow.cpp
++  ../gtk-common/xtesthelper.cpp
+   )
+ 
+ if (NOT DEFINED GTK3_IM_MODULEDIR)
+@@ -17,7 +18,7 @@ set_target_properties(im-fcitx5-gtk3 PROPERTIES PREFIX "" OUTPUT_NAME "im-fcitx5
+ 
+ target_link_libraries(im-fcitx5-gtk3 Fcitx5::GClient XKBCommon::XKBCommon PkgConfig::Gtk3 PkgConfig::GioUnix2)
+ if (TARGET PkgConfig::Gdk3X11)
+-target_link_libraries(im-fcitx5-gtk3 PkgConfig::Gdk3X11 X11Import)
++target_link_libraries(im-fcitx5-gtk3 PkgConfig::Gdk3X11 X11Import PkgConfig::XTST)
+ endif()
+ 
+ install(TARGETS im-fcitx5-gtk3 DESTINATION "${GTK3_IM_MODULEDIR}")
+diff --git a/gtk3/fcitximcontext.cpp b/gtk3/fcitximcontext.cpp
+index 47a48a8..f68dc90 100644
+--- a/gtk3/fcitximcontext.cpp
++++ b/gtk3/fcitximcontext.cpp
+@@ -33,6 +33,7 @@
+ #include "fcitx-gclient/fcitxgclient.h"
+ #include "fcitx-gclient/fcitxgwatcher.h"
+ #include "fcitximcontext.h"
++#include "gtk-common/xtesthelper.h"
+ #include "fcitxtheme.h"
+ #include "gtk3inputwindow.h"
+ 
+@@ -566,6 +567,14 @@ static gboolean fcitx_im_context_filter_keypress(GtkIMContext *context,
+                                                  GdkEventKey *event) {
+     FcitxIMContext *fcitxcontext = FCITX_IM_CONTEXT(context);
+ 
++    /* Recursion guard: must precede the client_window workaround below, which
++     * would otherwise adopt a synthetic event's window. Drop events we just
++     * injected via XTest so fcitx does not re-process them. */
++    if (_xtest_is_self_injected(event->hardware_keycode,
++                                event->type == GDK_KEY_PRESS)) {
++        return FALSE;
++    }
++
+     /* check this first, since we use key snooper, most key will be handled. */
+     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
+         /* XXX it is a workaround for some applications do not set client
+@@ -1293,12 +1302,41 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *,
+ void _fcitx_im_context_commit_string_cb(FcitxGClient *, char *str,
+                                         void *user_data) {
+     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
+-    fcitx_im_context_commit_string(context, str);
++
++    if (str == nullptr || *str == 0) {
++        return;
++    }
++
++    /* Multi-char string (e.g. a CJK word from candidates): commit directly.
++     * XTest per-char is not appropriate. Only a single char tries XTest,
++     * which lets Chromium password fields receive input they would otherwise
++     * reject when injected as commit-text. */
++    if (g_utf8_strlen(str, -1) > 1) {
++        fcitx_im_context_commit_string(context, str);
++        return;
++    }
++
++    gunichar ch = g_utf8_get_char(str);
++    if (!_xtest_commit_char(context, ch)) {
++        fcitx_im_context_commit_string(context, str);
++    }
+ }
+ 
+ void _fcitx_im_context_forward_key_cb(FcitxGClient *, guint keyval, guint state,
+                                       gboolean isRelease, void *user_data) {
+     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
++
++    /* No GdkWindow (Chromium password field): GDK injection is a no-op. Fall
++     * back to XTest, synthesizing press+release on the press request and
++     * ignoring the release request to avoid Chromium getting stuck replaying
++     * key-press events. */
++    if (context->client_window == nullptr) {
++        if (!isRelease) {
++            _xtest_forward_key(context, keyval, state);
++        }
++        return;
++    }
++
+     GdkEventKey *event = _create_gdk_event(context, keyval, state, isRelease);
+     event->state |= (guint32)IgnoredMask;
+     gdk_event_put((GdkEvent *)event);
+@@ -1613,6 +1651,11 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
+     if (fcitxcontext == NULL || !fcitxcontext->has_focus)
+         return FALSE;
+ 
++    if (_xtest_is_self_injected(event->hardware_keycode,
++                                event->type == GDK_KEY_PRESS)) {
++        return FALSE;
++    }
++
+     if (G_UNLIKELY(event->state & (guint32)HandledMask))
+         return TRUE;
+ 
