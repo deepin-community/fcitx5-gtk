@@ -1,3 +1,9 @@
+fcitx5-gtk (5.1.5-1deepin1) unstable; urgency=medium
+
+  * Add XTest key injection fallback for Chromium password fields.
+
+ -- Wang Yu <wangyu@uniontech.com>  Thu, 18 Jun 2026 10:38:36 +0800
+
 fcitx5-gtk (5.1.5-1) unstable; urgency=medium
 
   * New upstream release.
