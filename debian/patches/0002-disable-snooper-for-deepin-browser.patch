@@ -1,0 +1,23 @@
+Description: disable key snooper for deepin browser
+ Deepin browser is a Chromium-based browser, but its process name is
+ "browser", so it does not match the existing chrome/chromium snooper
+ blacklist. Add an exact match for it to the default list so it uses the same
+ GTK IM event path as other Chromium-family browsers without matching unrelated
+ application names that merely contain "browser".
+Author: Wang Yu <wangyu@uniontech.com>
+Forwarded: not-needed
+Last-Update: 2026-06-24
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 04e8e15..0d47df8 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -18,7 +18,7 @@ option(ENABLE_GTK4_IM_MODULE "Enable GTK4 IM Module" ON)
+ option(ENABLE_SNOOPER "Enable Key Snooper for gtk app" ON)
+ option(BUILD_ONLY_PLUGIN "Build only IM Module" OFF)
+ 
+-set(NO_SNOOPER_APPS ".*chrome.*,.*chromium.*,firefox.*,Do.*"
++set(NO_SNOOPER_APPS ".*chrome.*,.*chromium.*,^browser$,firefox.*,Do.*"
+     CACHE STRING "Disable Key Snooper for following app by default.")
+ set(NO_PREEDIT_APPS "gvim.*" CACHE STRING "Disable preedit for follwing app by default.")
+ set(SYNC_MODE_APPS "firefox.*" CACHE STRING "Use sync mode for following app by default.")

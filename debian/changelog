@@ -1,3 +1,9 @@
+fcitx5-gtk (5.1.5-1deepin3) unstable; urgency=medium
+
+  * Add 0002-disable-snooper-for-deepin-browser.patch: add deepin browser to NO_SNOOPER_APPS.
+
+ -- Wang Yu <wangyu@uniontech.com>  Tue, 24 Jun 2026 00:00:00 +0800
+
 fcitx5-gtk (5.1.5-1deepin2) unstable; urgency=medium
 
   * debian/control: Add libxtst-dev to Build-Depends for XTest fallback.
