@@ -1,0 +1,56 @@
+--- fcitx5-gtk-community.orig/fcitx-gclient/fcitxgclient.c
++++ fcitx5-gtk-community/fcitx-gclient/fcitxgclient.c
+@@ -130,6 +130,10 @@ static const gchar ic_introspection_xml[
+     "    <method name=\"SelectCandidate\">\n"
+     "      <arg name=\"index\" direction=\"in\" type=\"i\"/>\n"
+     "    </method>\n"
++    "    <method name=\"ShowVirtualKeyboard\">\n"
++    "    </method>\n"
++    "    <method name=\"HideVirtualKeyboard\">\n"
++    "    </method>\n"
+     "    <signal name=\"CommitString\">\n"
+     "      <arg name=\"str\" type=\"s\"/>\n"
+     "    </signal>\n"
+@@ -628,6 +632,30 @@ static gboolean _fcitx_g_client_handle_p
+ }
+ 
+ /**
++ * fcitx_g_client_show_virtual_keyboard:
++ * @self: A #FcitxGClient
++ *
++ * Tell fcitx current client to show virtual keyboard.
++ **/
++void fcitx_g_client_show_virtual_keyboard(FcitxGClient *self) {
++    g_return_if_fail(fcitx_g_client_is_valid(self));
++    g_dbus_proxy_call(self->priv->icproxy, "ShowVirtualKeyboard", NULL,
++                      G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL, NULL);
++}
++
++/**
++ * fcitx_g_client_hide_virtual_keyboard:
++ * @self: A #FcitxGClient
++ *
++ * Tell fcitx current client to hide virtual keyboard.
++ **/
++void fcitx_g_client_hide_virtual_keyboard(FcitxGClient *self) {
++    g_return_if_fail(fcitx_g_client_is_valid(self));
++    g_dbus_proxy_call(self->priv->icproxy, "HideVirtualKeyboard", NULL,
++                      G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL, NULL);
++}
++
++/**
+  * fcitx_g_client_process_key_finish:
+  * @self: A #FcitxGClient
+  * @res: result
+--- fcitx5-gtk-community.orig/fcitx-gclient/fcitxgclient.h
++++ fcitx5-gtk-community/fcitx-gclient/fcitxgclient.h
+@@ -70,6 +70,9 @@ void fcitx_g_client_select_candidate(Fci
+ 
+ void fcitx_g_client_reset(FcitxGClient *self);
+ 
++void fcitx_g_client_show_virtual_keyboard(FcitxGClient *self);
++void fcitx_g_client_hide_virtual_keyboard(FcitxGClient *self);
++
+ G_END_DECLS
+ 
+ #endif // CLIENT_IM_H

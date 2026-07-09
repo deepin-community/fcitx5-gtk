@@ -1,3 +1,9 @@
+fcitx5-gtk (5.1.5-1deepin4) unstable; urgency=medium
+
+  * Add GClient virtual keyboard show and hide APIs.
+
+ -- Wang Yu <wangyu@uniontech.com>  Thu, 09 Jul 2026 09:55:00 +0800
+
 fcitx5-gtk (5.1.5-1deepin3) unstable; urgency=medium
 
   * Add 0002-disable-snooper-for-deepin-browser.patch: add deepin browser to NO_SNOOPER_APPS.
