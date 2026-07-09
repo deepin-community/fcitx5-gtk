@@ -4,6 +4,7 @@ libFcitx5GClient.so.2 libfcitx5gclient2 #MINVER#
  fcitx_g_client_focus_out@Base 0.0~git20200402.3e6795d
  fcitx_g_client_get_type@Base 0.0~git20200402.3e6795d
  fcitx_g_client_get_uuid@Base 0.0~git20200402.3e6795d
+ fcitx_g_client_hide_virtual_keyboard@Base 5.1.5-1deepin4
  fcitx_g_client_is_valid@Base 0.0~git20200402.3e6795d
  fcitx_g_client_new@Base 0.0~git20200402.3e6795d
  fcitx_g_client_new_with_watcher@Base 0.0~git20200402.3e6795d
@@ -21,6 +22,7 @@ libFcitx5GClient.so.2 libfcitx5gclient2 #MINVER#
  fcitx_g_client_set_program@Base 0.0~git20200402.3e6795d
  fcitx_g_client_set_surrounding_text@Base 0.0~git20200402.3e6795d
  fcitx_g_client_set_use_batch_process_key_event@Base 5.0.20
+ fcitx_g_client_show_virtual_keyboard@Base 5.1.5-1deepin4
  fcitx_g_watcher_get_connection@Base 0.0~git20200402.3e6795d
  fcitx_g_watcher_get_service_name@Base 0.0~git20200402.3e6795d
  fcitx_g_watcher_get_type@Base 0.0~git20200402.3e6795d
