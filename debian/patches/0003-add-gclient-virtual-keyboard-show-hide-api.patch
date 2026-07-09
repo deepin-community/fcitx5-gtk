@@ -1,5 +1,5 @@
---- fcitx5-gtk-community.orig/fcitx-gclient/fcitxgclient.c
-+++ fcitx5-gtk-community/fcitx-gclient/fcitxgclient.c
+--- a/fcitx-gclient/fcitxgclient.c
++++ b/fcitx-gclient/fcitxgclient.c
 @@ -130,6 +130,10 @@ static const gchar ic_introspection_xml[
      "    <method name=\"SelectCandidate\">\n"
      "      <arg name=\"index\" direction=\"in\" type=\"i\"/>\n"
@@ -42,8 +42,8 @@
   * fcitx_g_client_process_key_finish:
   * @self: A #FcitxGClient
   * @res: result
---- fcitx5-gtk-community.orig/fcitx-gclient/fcitxgclient.h
-+++ fcitx5-gtk-community/fcitx-gclient/fcitxgclient.h
+--- a/fcitx-gclient/fcitxgclient.h
++++ b/fcitx-gclient/fcitxgclient.h
 @@ -70,6 +70,9 @@ void fcitx_g_client_select_candidate(Fci
  
  void fcitx_g_client_reset(FcitxGClient *self);

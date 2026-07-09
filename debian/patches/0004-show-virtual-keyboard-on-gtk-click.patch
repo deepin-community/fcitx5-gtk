@@ -1,0 +1,94 @@
+Index: gtk2/fcitximcontext.cpp
+===================================================================
+--- a/gtk2/fcitximcontext.cpp
++++ b/gtk2/fcitximcontext.cpp
+@@ -432,6 +432,10 @@ fcitx_im_context_button_press_event_cb(G
+     }
+ 
+     fcitx_im_context_reset(GTK_IM_CONTEXT(context));
++    if (fcitx_g_client_is_valid(context->client)) {
++        fcitx_g_client_show_virtual_keyboard(context->client);
++    }
++
+     return FALSE;
+ }
+ 
+@@ -772,6 +776,7 @@ static void fcitx_im_context_focus_in(Gt
+ 
+     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
+         fcitx_g_client_focus_in(fcitxcontext->client);
++        fcitx_g_client_show_virtual_keyboard(fcitxcontext->client);
+     }
+ 
+     gtk_im_context_focus_in(fcitxcontext->slave);
+@@ -1458,8 +1463,10 @@ void _fcitx_im_context_connect_cb(FcitxG
+ 
+     _fcitx_im_context_set_capability(context, TRUE);
+     if (context->has_focus && _focus_im_context == (GtkIMContext *)context &&
+-        fcitx_g_client_is_valid(context->client))
++        fcitx_g_client_is_valid(context->client)) {
+         fcitx_g_client_focus_in(context->client);
++        fcitx_g_client_show_virtual_keyboard(context->client);
++    }
+     /* set_cursor_location_internal() will get origin from X server,
+      * it blocks UI. So delay it to idle callback. */
+     gdk_threads_add_idle_full(
+Index: gtk3/fcitximcontext.cpp
+===================================================================
+--- a/gtk3/fcitximcontext.cpp
++++ b/gtk3/fcitximcontext.cpp
+@@ -483,6 +483,10 @@ fcitx_im_context_button_press_event_cb(G
+     }
+ 
+     fcitx_im_context_reset(GTK_IM_CONTEXT(context));
++    if (fcitx_g_client_is_valid(context->client)) {
++        fcitx_g_client_show_virtual_keyboard(context->client);
++    }
++
+     return FALSE;
+ }
+ 
+@@ -862,6 +866,7 @@ static void fcitx_im_context_focus_in(Gt
+ 
+     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
+         fcitx_g_client_focus_in(fcitxcontext->client);
++        fcitx_g_client_show_virtual_keyboard(fcitxcontext->client);
+     }
+ 
+     gtk_im_context_focus_in(fcitxcontext->slave);
+@@ -1606,8 +1611,10 @@ void _fcitx_im_context_connect_cb(FcitxG
+ 
+     _fcitx_im_context_set_capability(context, TRUE);
+     if (context->has_focus && _focus_im_context == (GtkIMContext *)context &&
+-        fcitx_g_client_is_valid(context->client))
++        fcitx_g_client_is_valid(context->client)) {
+         fcitx_g_client_focus_in(context->client);
++        fcitx_g_client_show_virtual_keyboard(context->client);
++    }
+     /* set_cursor_location_internal() will get origin from X server,
+      * it blocks UI. So delay it to idle callback. */
+     gdk_threads_add_idle_full(
+Index: gtk4/fcitximcontext.cpp
+===================================================================
+--- a/gtk4/fcitximcontext.cpp
++++ b/gtk4/fcitximcontext.cpp
+@@ -741,6 +741,7 @@ static void fcitx_im_context_focus_in(Gt
+ 
+     if (fcitx_g_client_is_valid(fcitxcontext->client)) {
+         fcitx_g_client_focus_in(fcitxcontext->client);
++        fcitx_g_client_show_virtual_keyboard(fcitxcontext->client);
+     }
+ 
+     gtk_im_context_focus_in(fcitxcontext->slave);
+@@ -1291,8 +1292,10 @@ void _fcitx_im_context_connect_cb(FcitxG
+ 
+     _fcitx_im_context_set_capability(context, TRUE);
+     if (context->has_focus && _focus_im_context == (GtkIMContext *)context &&
+-        fcitx_g_client_is_valid(context->client))
++        fcitx_g_client_is_valid(context->client)) {
+         fcitx_g_client_focus_in(context->client);
++        fcitx_g_client_show_virtual_keyboard(context->client);
++    }
+     /* set_cursor_location_internal() will get origin from X server,
+      * it blocks UI. So delay it to idle callback. */
+     g_idle_add_full(G_PRIORITY_DEFAULT_IDLE,

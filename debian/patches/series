@@ -1,3 +1,4 @@
 0001-xtest-fallback-for-forward-key.patch
 0002-disable-snooper-for-deepin-browser.patch
 0003-add-gclient-virtual-keyboard-show-hide-api.patch
+0004-show-virtual-keyboard-on-gtk-click.patch
