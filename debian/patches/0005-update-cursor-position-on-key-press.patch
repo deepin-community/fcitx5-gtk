@@ -1,0 +1,36 @@
+Description: update the cursor position when a key is pressed
+ In gtk3 IM module, the key snooper callback only updated the cursor
+ location to the IM framework when the IM engine did NOT handle the
+ key event. When the IM engine (e.g. Sogou Pinyin) called
+ keyEvent.filterAndAccept(), the cursor location was not refreshed, so
+ after dragging the application window the candidate window appeared at
+ the previous position until the next un-handled key.
+ .
+ Mirroring fcitx5-qt's behavior (which always updates the IM cursor
+ location on every key press regardless of whether the engine handled
+ the key), call set_cursor_location_internal() via an idle callback at
+ the start of _key_snooper_cb so the candidate window tracks the real
+ cursor position.
+ .
+ Upstream PR: https://github.com/fcitx/fcitx5-gtk/pull/38 (merged)
+Forwarded: not-needed
+Author: hantengc <1341910529@qq.com>
+Origin: https://github.com/fcitx/fcitx5-gtk/pull/38
+
+diff --git a/gtk3/fcitximcontext.cpp b/gtk3/fcitximcontext.cpp
+index 47a48a8..d665180 100644
+--- a/gtk3/fcitximcontext.cpp
++++ b/gtk3/fcitximcontext.cpp
+@@ -1624,6 +1624,12 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
+             break;
+         }
+ 
++        /* set_cursor_location_internal() will get origin from X server,
++         * it blocks UI. So delay it to idle callback. */
++        gdk_threads_add_idle_full(
++            G_PRIORITY_DEFAULT_IDLE, (GSourceFunc)_set_cursor_location_internal,
++            g_object_ref(fcitxcontext), (GDestroyNotify)g_object_unref);
++
+         _request_surrounding_text(&fcitxcontext);
+         if (G_UNLIKELY(!fcitxcontext))
+             return FALSE;
