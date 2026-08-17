@@ -1,3 +1,9 @@
+fcitx5-gtk (5.1.5-1deepin6) unstable; urgency=medium
+
+  * Add 0005-update-cursor-position-on-key-press.patch: update cursor position on key press (upstream PR #38).
+
+ -- Wang Yu <wangyu@uniontech.com>  Mon, 17 Aug 2026 00:00:00 +0800
+
 fcitx5-gtk (5.1.5-1deepin5) unstable; urgency=medium
 
   * Add GTK virtual keyboard show on focus and click.
