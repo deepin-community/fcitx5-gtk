@@ -1,16 +1,8 @@
-Description: XTest fallback for Chromium password fields (X11)
- Chromium password fields reject commit-text injected by the IM module, so
- single-char commits never reach the field. Add a shared XTest helper under
- gtk-common/ used by both the gtk2 and gtk3 IM modules:
- .
- commit_string_cb: empty string is dropped; a multi-char string (e.g. a CJK
- candidate word) is committed normally; a single char is injected via XTest
- (XTestFakeKeyEvent), reverse-mapped to a keycode + optional Shift through
- the current X keymap, falling back to a normal commit when XTest is
- unavailable, non-X11, or the char has no base/shift mapping.
- .
- forward_key_cb: when there is no GdkWindow, synthesize the key via XTest on
- the press request and ignore the release to avoid Chromium replay loops.
+Description: XTest fallback for browser password fields (X11)
+ browser password fields reject commit-text injected by the IM module. Keep
+ normal commit-string delivery unchanged, and use the existing ForwardKey
+ path for virtual-keyboard input. When a target has no GdkWindow (as with
+ browser password fields), synthesize the forwarded key through XTest.
  .
  A TTL self-injection queue (500ms, not consumed on lookup) lets both
  filter_keypress and _key_snooper_cb recognize synthetic events and skip
@@ -18,15 +10,15 @@ Description: XTest fallback for Chromium password fields (X11)
  (Shift/Control/Mod1); LockMask and Super/Hyper/Meta are dropped. Display
  comes from GDK, never XOpenDisplay. X11/XTest are wrapped in
  #ifdef GDK_WINDOWING_X11 so the helper is a no-op on non-X11 gtk3 builds.
- Limitation: only chars producible at base/shift level are injectable; CJK /
- AltGr chars fall back to commit. X11 only.
-Origin: other, backport of openkylin/nile-sp2 virtual-keyboard flow
+ XTest is used only by the ForwardKey path; normal commit strings, including
+ single ASCII characters, always use the GTK commit signal.
+Origin: other, XTest fallback for browser virtual-keyboard input
 Author: liulinsong <liulinsong@kylinos.cn>
 Forwarded: not-needed
-Last-Update: 2026-06-23
+Last-Update: 2026-08-24
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 04e8e15..9511ff5 100644
+index 04e8e150bf8d26aa523e8dbd7ebc3b159e0c8cd8..9511ff58b794698c50f3189a6282e6dde8e72931 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -45,12 +45,14 @@ endif()
@@ -65,10 +57,10 @@ index 04e8e15..9511ff5 100644
  endif()
 diff --git a/gtk-common/xtesthelper.cpp b/gtk-common/xtesthelper.cpp
 new file mode 100644
-index 0000000..bb30803
+index 0000000000000000000000000000000000000000..edd6b5478d0d36902b918f872bbe7dd60887e527
 --- /dev/null
 +++ b/gtk-common/xtesthelper.cpp
-@@ -0,0 +1,232 @@
+@@ -0,0 +1,190 @@
 +/*
 + * SPDX-FileCopyrightText: 2026 fcitx5-gtk contributors
 + *
@@ -186,8 +178,9 @@ index 0000000..bb30803
 +}
 +
 +/* Display and XTest availability are stable for the process lifetime. Resolve
-+ * them once so the commit path does not do an XTestQueryExtension server
-+ * round-trip (plus display lookup) for every committed char. Stays unresolved
++ * them once so the forward-key path does not do an XTestQueryExtension
++ * server round-trip (plus display lookup) for every forwarded key. Stays
++ * unresolved
 + * until both succeed, so an early call before the display is ready can retry. */
 +static gboolean xtest_ready(Display **out) {
 +    static Display *cached = nullptr;
@@ -222,27 +215,6 @@ index 0000000..bb30803
 +    return ok;
 +}
 +
-+struct KeyResolve {
-+    KeyCode keycode;
-+    gboolean need_shift;
-+};
-+
-+/* Map a KeySym to the physical keycode that produces it. Use shifted level
-+ * only to decide whether Shift is needed; do not reject the keycode if
-+ * base/shift do not match, since some X keymaps still produce usable keycodes
-+ * via XKeysymToKeycode(). */
-+static gboolean xtest_resolve_char(Display *dpy, KeySym ks, KeyResolve *out) {
-+    KeyCode kc = XKeysymToKeycode(dpy, ks);
-+    if (kc == 0) {
-+        return FALSE;
-+    }
-+    KeySym base = XKeycodeToKeysym(dpy, kc, 0);
-+    KeySym shifted = XKeycodeToKeysym(dpy, kc, 1);
-+    out->keycode = kc;
-+    out->need_shift = (base != ks && shifted == ks);
-+    return TRUE;
-+}
-+
 +/* Translate the GDK modifier bits we trust into X modifier masks. LockMask
 + * (CapsLock) and the GDK Super/Hyper/Meta bits are intentionally dropped. */
 +static unsigned int xtest_state_from_gdk(guint state) {
@@ -271,42 +243,20 @@ index 0000000..bb30803
 +    return xtest_send_keycode(dpy, kc, xtest_state_from_gdk(state));
 +}
 +
-+gboolean _xtest_commit_char(struct _FcitxIMContext *, gunichar ch) {
-+    if (ch == 0) {
-+        return FALSE;
-+    }
-+    Display *dpy;
-+    if (!xtest_ready(&dpy)) {
-+        return FALSE;
-+    }
-+    KeySym ks = static_cast<KeySym>(gdk_unicode_to_keyval(ch));
-+    if (ks == 0 || ks == NoSymbol) {
-+        return FALSE;
-+    }
-+    KeyResolve r;
-+    if (!xtest_resolve_char(dpy, ks, &r)) {
-+        return FALSE;
-+    }
-+    return xtest_send_keycode(dpy, r.keycode, r.need_shift ? ShiftMask : 0);
-+}
-+
 +#else /* !GDK_WINDOWING_X11 */
 +
 +gboolean _xtest_forward_key(struct _FcitxIMContext *, guint, guint) {
 +    return FALSE;
 +}
 +
-+gboolean _xtest_commit_char(struct _FcitxIMContext *, gunichar) {
-+    return FALSE;
-+}
 +
 +#endif /* GDK_WINDOWING_X11 */
 diff --git a/gtk-common/xtesthelper.h b/gtk-common/xtesthelper.h
 new file mode 100644
-index 0000000..8fa3b1a
+index 0000000000000000000000000000000000000000..116bc029638dd222fef86fdf713f4cb133e2bdb3
 --- /dev/null
 +++ b/gtk-common/xtesthelper.h
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,35 @@
 +/*
 + * SPDX-FileCopyrightText: 2026 fcitx5-gtk contributors
 + *
@@ -324,18 +274,13 @@ index 0000000..8fa3b1a
 +
 +/*
 + * XTest key injection helpers used as a fallback when the target application
-+ * does not expose a GdkWindow (e.g. Chromium password fields). X11 only; on
++ * does not expose a GdkWindow (e.g. browser password fields). X11 only; on
 + * Wayland / non-X11 builds these are no-ops returning FALSE.
 + */
 +
 +/* ForwardKey path: keyval + state already carry the GDK modifier bits. */
 +gboolean _xtest_forward_key(struct _FcitxIMContext *context, guint keyval,
 +                            guint state);
-+
-+/* Commit path: reverse-map a single unicode char to a keycode + optional
-+ * Shift. Returns FALSE when the char cannot be produced at the base or
-+ * shifted level of the current X keymap (e.g. CJK). */
-+gboolean _xtest_commit_char(struct _FcitxIMContext *context, gunichar ch);
 +
 +/* Recursion guard: returns TRUE while a matching self-injection record is
 + * alive (within its TTL). Not consumed on lookup -- a synthetic event is seen
@@ -348,7 +293,7 @@ index 0000000..8fa3b1a
 +
 +#endif
 diff --git a/gtk2/CMakeLists.txt b/gtk2/CMakeLists.txt
-index dbfc894..80c1f6e 100644
+index dbfc8949a512ed358373062d5e7406c15d2e186d..80c1f6ef7b8c46280e16cd3cae1c249d0a50e043 100644
 --- a/gtk2/CMakeLists.txt
 +++ b/gtk2/CMakeLists.txt
 @@ -1,6 +1,7 @@
@@ -369,7 +314,7 @@ index dbfc894..80c1f6e 100644
  
  
 diff --git a/gtk2/fcitximcontext.cpp b/gtk2/fcitximcontext.cpp
-index f38b753..cf8f477 100644
+index f38b753aad35ac6c194e141430aa74668d94da2e..98ebdc7221348d9af2b2a2a99728cc2a5fc42724 100644
 --- a/gtk2/fcitximcontext.cpp
 +++ b/gtk2/fcitximcontext.cpp
 @@ -18,6 +18,7 @@
@@ -395,38 +340,14 @@ index f38b753..cf8f477 100644
      /* check this first, since we use key snooper, most key will be handled. */
      if (fcitx_g_client_is_valid(fcitxcontext->client)) {
          /* XXX it is a workaround for some applications do not set client
-@@ -1181,12 +1190,41 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *,
- void _fcitx_im_context_commit_string_cb(FcitxGClient *, char *str,
-                                         void *user_data) {
-     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
--    fcitx_im_context_commit_string(context, str);
-+
-+    if (str == nullptr || *str == 0) {
-+        return;
-+    }
-+
-+    /* Multi-char string (e.g. a CJK word from candidates): commit directly.
-+     * XTest per-char is not appropriate. Only a single char tries XTest,
-+     * which lets Chromium password fields receive input they would otherwise
-+     * reject when injected as commit-text. */
-+    if (g_utf8_strlen(str, -1) > 1) {
-+        fcitx_im_context_commit_string(context, str);
-+        return;
-+    }
-+
-+    gunichar ch = g_utf8_get_char(str);
-+    if (!_xtest_commit_char(context, ch)) {
-+        fcitx_im_context_commit_string(context, str);
-+    }
- }
- 
+@@ -1187,6 +1196,18 @@ void _fcitx_im_context_commit_string_cb(FcitxGClient *, char *str,
  void _fcitx_im_context_forward_key_cb(FcitxGClient *, guint keyval, guint state,
                                        gboolean isRelease, void *user_data) {
      FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
 +
-+    /* No GdkWindow (Chromium password field): GDK injection is a no-op. Fall
++    /* No GdkWindow (browser password field): GDK injection is a no-op. Fall
 +     * back to XTest, synthesizing press+release on the press request and
-+     * ignoring the release request to avoid Chromium getting stuck replaying
++     * ignoring the release request to avoid browser getting stuck replaying
 +     * key-press events. */
 +    if (context->client_window == nullptr) {
 +        if (!isRelease) {
@@ -438,7 +359,7 @@ index f38b753..cf8f477 100644
      GdkEventKey *event = _create_gdk_event(context, keyval, state, isRelease);
      event->state |= (guint32)IgnoredMask;
      gdk_event_put((GdkEvent *)event);
-@@ -1465,6 +1503,11 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
+@@ -1465,6 +1486,11 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
      if (fcitxcontext == NULL || !fcitxcontext->has_focus)
          return FALSE;
  
@@ -451,7 +372,7 @@ index f38b753..cf8f477 100644
          return TRUE;
  
 diff --git a/gtk3/CMakeLists.txt b/gtk3/CMakeLists.txt
-index da9ba6f..c491180 100644
+index da9ba6fc00e31b65e41806703bec970da20900ea..c491180cc678f123a50bf0eb82117af7677a53d9 100644
 --- a/gtk3/CMakeLists.txt
 +++ b/gtk3/CMakeLists.txt
 @@ -5,6 +5,7 @@ set(FCITX_GTK3_IM_MODULE_SOURCES
@@ -472,7 +393,7 @@ index da9ba6f..c491180 100644
  
  install(TARGETS im-fcitx5-gtk3 DESTINATION "${GTK3_IM_MODULEDIR}")
 diff --git a/gtk3/fcitximcontext.cpp b/gtk3/fcitximcontext.cpp
-index 47a48a8..f68dc90 100644
+index 47a48a819a3ed9cddb340275c1f4dbad3651830d..81f51ede9a0c4438c01071714e797a4c84357973 100644
 --- a/gtk3/fcitximcontext.cpp
 +++ b/gtk3/fcitximcontext.cpp
 @@ -33,6 +33,7 @@
@@ -498,38 +419,14 @@ index 47a48a8..f68dc90 100644
      /* check this first, since we use key snooper, most key will be handled. */
      if (fcitx_g_client_is_valid(fcitxcontext->client)) {
          /* XXX it is a workaround for some applications do not set client
-@@ -1293,12 +1302,41 @@ static gboolean _slave_delete_surrounding_cb(GtkIMContext *,
- void _fcitx_im_context_commit_string_cb(FcitxGClient *, char *str,
-                                         void *user_data) {
-     FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
--    fcitx_im_context_commit_string(context, str);
-+
-+    if (str == nullptr || *str == 0) {
-+        return;
-+    }
-+
-+    /* Multi-char string (e.g. a CJK word from candidates): commit directly.
-+     * XTest per-char is not appropriate. Only a single char tries XTest,
-+     * which lets Chromium password fields receive input they would otherwise
-+     * reject when injected as commit-text. */
-+    if (g_utf8_strlen(str, -1) > 1) {
-+        fcitx_im_context_commit_string(context, str);
-+        return;
-+    }
-+
-+    gunichar ch = g_utf8_get_char(str);
-+    if (!_xtest_commit_char(context, ch)) {
-+        fcitx_im_context_commit_string(context, str);
-+    }
- }
- 
+@@ -1299,6 +1308,18 @@ void _fcitx_im_context_commit_string_cb(FcitxGClient *, char *str,
  void _fcitx_im_context_forward_key_cb(FcitxGClient *, guint keyval, guint state,
                                        gboolean isRelease, void *user_data) {
      FcitxIMContext *context = FCITX_IM_CONTEXT(user_data);
 +
-+    /* No GdkWindow (Chromium password field): GDK injection is a no-op. Fall
++    /* No GdkWindow (browser password field): GDK injection is a no-op. Fall
 +     * back to XTest, synthesizing press+release on the press request and
-+     * ignoring the release request to avoid Chromium getting stuck replaying
++     * ignoring the release request to avoid browser getting stuck replaying
 +     * key-press events. */
 +    if (context->client_window == nullptr) {
 +        if (!isRelease) {
@@ -541,7 +438,7 @@ index 47a48a8..f68dc90 100644
      GdkEventKey *event = _create_gdk_event(context, keyval, state, isRelease);
      event->state |= (guint32)IgnoredMask;
      gdk_event_put((GdkEvent *)event);
-@@ -1613,6 +1651,11 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
+@@ -1613,6 +1634,11 @@ static gint _key_snooper_cb(GtkWidget *, GdkEventKey *event, gpointer) {
      if (fcitxcontext == NULL || !fcitxcontext->has_focus)
          return FALSE;
  
