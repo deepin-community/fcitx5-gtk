@@ -1,3 +1,10 @@
+fcitx5-gtk (5.1.5-1deepin7) unstable; urgency=medium
+
+  * Fix GTK2/GTK3 ASCII single-character commits being lost by the XTest
+    fallback, while retaining XTest forwarding for browser password fields.
+
+ -- Wang Yu <wangyu@uniontech.com>  Mon, 24 Aug 2026 00:00:00 +0800
+
 fcitx5-gtk (5.1.5-1deepin6) unstable; urgency=medium
 
   * Add 0005-update-cursor-position-on-key-press.patch: update cursor position on key press (upstream PR #38).
