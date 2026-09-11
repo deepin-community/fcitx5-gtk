@@ -1,3 +1,9 @@
+fcitx5-gtk (5.1.5-1deepin8) unstable; urgency=medium
+
+  * Rebuild with LTO enabled (dpkg vendor feature optimize/lto).
+
+ -- tunaichao <tunaichao@uniontech.com>  Fri, 11 Sep 2026 10:14:04 +0800
+
 fcitx5-gtk (5.1.5-1deepin7) unstable; urgency=medium
 
   * Fix GTK2/GTK3 ASCII single-character commits being lost by the XTest
